@@ -47,9 +47,9 @@ mockgen -source=foo.go [other options]
 ```
 
 Reflect mode generates mock interfaces by building a program
-that uses reflection to understand interfaces. It is enabled
-by passing two non-flag arguments: an import path, and a
-comma-separated list of symbols.
+that uses reflection to understand interfaces and function
+types. It is enabled by passing two non-flag arguments: an
+import path, and a comma-separated list of symbols.
 
 You can use "." to refer to the current path's package.
 
@@ -63,10 +63,10 @@ mockgen . Conn,Driver
 ```
 
 The `mockgen` command is used to generate source code for a mock
-class given a Go source file containing interfaces to be mocked.
-It supports the following flags:
+class given a Go source file containing interfaces and function
+types to be mocked. It supports the following flags:
 
-* `-source`: A file containing interfaces to be mocked.
+* `-source`: A file containing interfaces and function types to be mocked.
 
 * `-destination`: A file to which to write the resulting source code. If you
     don't set this, the code is printed to standard output.
@@ -115,7 +115,9 @@ type Foo interface {
   Bar(x int) int
 }
 
-func SUT(f Foo) {
+type Qux func(x int)
+
+func SUT(f Foo, q Qux) {
  // ...
 }
 
@@ -125,19 +127,28 @@ func SUT(f Foo) {
 func TestFoo(t *testing.T) {
   ctrl := gomock.NewController(t)
 
-  // Assert that Bar() is invoked.
+  // Assert that Bar() and Qux() are invoked.
   defer ctrl.Finish()
 
-  m := NewMockFoo(ctrl)
+  mf := NewMockFoo(ctrl)
+  mq := NewMockQux(ctrl)
 
   // Asserts that the first and only call to Bar() is passed 99.
   // Anything else will fail.
-  m.
+  mf.
     EXPECT().
     Bar(gomock.Eq(99)).
     Return(101)
 
-  SUT(m)
+  // Similarly, asserts that a single call to Qux() is made.
+  // Because Qux() is a function type, a mock is generated
+  // that has a single "Call" method of the desired type.
+  mq.
+    EXPECT().
+    Call(gomock.Eq(123)).
+    Return(456)
+
+  SUT(mf, mq.Call)
 }
 ```
 
